@@ -10,7 +10,7 @@ setup(name='txfileio',
       author='Yaroslav Fedevych',
       author_email='jaroslaw.fedewicz@gmail.com',
       url='https://github.com/jafd/txfileio',
-      py_modules=['txfileio'],
+      packages=['txfileio'],
       install_requires=['distribute', 'twisted']
      )
 
