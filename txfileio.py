@@ -32,15 +32,16 @@ class FileIOProxy(object):
         raise AttributeError("The object of class '{0}' has no attribute '{1}'".format(self.fd.__class__.__name__, attrname))
 
 class Operation(object):
-    __slots__ = ('fd', 'name', 'deferred', 'args', 'kwargs')
+    __slots__ = ('fd', 'name', 'deferred', 'args', 'kwargs', 'state')
     def __init__(self, **kwargs):
         self.args = kwargs.get('args', None)
         self.kwargs = kwargs.get('kwargs', None)
+        self.state = 'new'
         for i in ('fd', 'name', 'deferred'):
             setattr(self, i, kwargs.get(i))
             
     def __str__(self):
-        return "File operation: {0}(*{1}, **{2})".format(self.name, repr(self.args), repr(self.kwargs))
+        return "File operation: {0}({1}, {2}), state = {3}".format(self.name, repr(self.args), repr(self.kwargs), self.state)
 
 class Runner(object):
     __slots__ = ('fd', 'busy', 'running', 'queue', 'manager')
@@ -61,15 +62,21 @@ class Runner(object):
             try:
                 op = self.queue.get(True, self.manager.queue_timeout)
                 self.fd = op.fd
+                op.state = 'running'
                 self.busy = True
-                if (op.fd is None) and (op.name != 'open'):
-                    raise RuntimeError("Calling a file operation {0} on None".format(op.name))
-                if op.name == 'open':
-                    result = self.manager.take(open(*op.args, **op.kwargs))
-                    op.fd = result
-                else:
-                    result = getattr(op.fd.fd, op.name)(*op.args, **op.kwargs)
-                threads.blockingCallFromThread(self.manager.reactor, op.deferred.callback, result)
+                try:
+                    if (op.fd is None) and (op.name != 'open'):
+                        raise RuntimeError("Calling a file operation {0} on None".format(op.name))
+                    if op.name == 'open':
+                        result = self.manager.take(open(*op.args, **op.kwargs))
+                        op.fd = result
+                    else:
+                        result = getattr(op.fd.fd, op.name)(*op.args, **op.kwargs)
+                    op.state = 'success'
+                    threads.blockingCallFromThread(self.manager.reactor, op.deferred.callback, result)
+                except Exception as e:
+                    op.state = 'failure'
+                    threads.blockingCallFromThread(self.manager.reactor, op.deferred.errback, e)
             except Queue.Empty:
                 pass
         return True
