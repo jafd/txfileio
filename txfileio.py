@@ -96,9 +96,12 @@ class Runner(object):
         op.state = 'running'
         self.busy = True
         try:
-            if (op.fd is None) and (op.name != 'open'):
+            if (op.fd is None) and (op.name not in ('open', '_stop')):
                 raise RuntimeError("Calling a file operation {0} on None".format(op.name))
-            if op.name == 'open':
+            if op.name == '_stop':
+                self.running = False
+                result = True
+            elif op.name == 'open':
                 result = self.manager.take(open(*op.args, **op.kwargs))
                 op.fd = result
             elif op.name == 'interaction':
@@ -135,27 +138,36 @@ class FileIOManager(object):
         self.maxrunners = maxrunners
         self.queue_timeout = queue_timeout
         self.runners = []
+        for i in range(self.maxrunners - 1):
+            self.spawnRunner()
         self.runner_no = 0
         self.stopdeferred = defer.Deferred()
         self.reactor.addSystemEventTrigger('before','shutdown',self.stop)
 
     def take(self, fileobject):
         """
-        Add an existing file-like object to be processed. Returned is a FileIOProxy
+        @param fileobject: a file-like object
+        @return: FileIOProxy
+        
+        manager.take(myfile) -> FileIOProxy wrapped around myfile
         """
         fp = FileIOProxy(self, fileobject)
         return fp
 
     def enqueue(self, op, fd, args, kwargs, proc=None):
+        """
+        @param op: operation name
+        @param fd: FileIOProxy instance or None for 'open' and 'interaction'
+        @param args: additional arguments for the operation
+        @param kwargs: additional keyword arguments for the operation
+        @param proc: a callable to be used with op='interaction'
+        
+        @return: a Deferred which fires with operation's result
+        """
         if not self.accept_operations:
             raise RuntimeError("Operations queued past service stop")
         d = defer.Deferred()
         operation = Operation(name=op, args=args, kwargs=kwargs, deferred=d, fd=fd, callable=proc)
-        #----
-        r = OneShootRunner(self)
-        self.runners.append(r)
-        d = threads.deferToThread(r, operation)
-        return d
         
         filtered = filter(lambda x: x.fd is fd, self.runners)
         if len(filtered):
@@ -173,7 +185,7 @@ class FileIOManager(object):
     def stop(self):
         self.accept_operations = False
         for x in self.runners:
-            x.running = False
+            x.enqueue(Operation(op='_stop'))
         
     def open(self, *args, **kwargs):
         return self.enqueue('open', None, args, kwargs)
