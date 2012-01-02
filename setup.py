@@ -11,5 +11,6 @@ setup(name='txfileio',
       author_email='jaroslaw.fedewicz@gmail.com',
       url='https://github.com/jafd/txfileio',
       py_modules=['txfileio'],
+      install_requires=['distribute', 'twisted']
      )
 
