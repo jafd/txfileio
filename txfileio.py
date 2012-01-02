@@ -85,6 +85,9 @@ class Runner(object):
         self.queue.put(op)
         return op.deferred
         
+    def stop(self):
+        return self.enqueue(Operation(op='_stop'))
+        
     def execute(self, op):
         """
         @param op: operation to execute
@@ -185,7 +188,7 @@ class FileIOManager(object):
     def stop(self):
         self.accept_operations = False
         for x in self.runners:
-            x.enqueue(Operation(op='_stop'))
+            x.stop()
         
     def open(self, *args, **kwargs):
         return self.enqueue('open', None, args, kwargs)
