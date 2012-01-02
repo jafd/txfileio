@@ -1,6 +1,5 @@
 This is txfileio, an effort to make portable asynchronous file I/O possible. It is probably
-very buggy, it's definitely slow, has no (yet) possibilities of running an interaction like
-adbapi does.
+very buggy, it's definitely slow.
 
 It uses threads and a fixed number of pre-spawned runners to do actual file I/O.
 
@@ -20,4 +19,3 @@ d = filemanager.open(<the same arguments as for regular open>).addCallback(do_re
 
 FileIOProxy objects delegate all operations to the manager, and return deferreds which,
 if successful, fire with results of those operations, and fail with appropriate failures.
- 
