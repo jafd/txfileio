@@ -1,8 +1,25 @@
+# -*- coding: utf-8 -*-
+"""
+@author: Yaroslav Fedevych <jaroslaw.fedewicz@gmail.com>
+@version: 0.0.0
+
+This is a threaded implementation of asynchronous file I/O for Twisted. It aims at increasing
+responsiveness in services that do lots of file I/O, sometimes on networked filesystems.
+
+Please note that this implementation is quite dumb: all it tries to do is delegate file I/O operations
+to worker threads, and defer the results. It would most definitely slow down execution time, especially
+when using lots and lots of small operations. But the aim is not to make things fast, but
+to increase responsiveness for the cases when file I/O might be slow and, for example, all clients would
+be impacted by a single client causing lags by making the server do slow file I/O.
+
+@todo: abstract enough code to allow different implementation (subprocesses?)
+
+"""
+
 from twisted.internet import defer, threads
 from twisted.python.failure import Failure
 import Queue
 import sys
-import time
 
 class FileIOProxy(object):
     """
@@ -82,10 +99,16 @@ class Runner(object):
         self.manager = manager
 
     def enqueue(self, op):
+        """
+        Enqueue an operation.
+        """
         self.queue.put(op)
         return op.deferred
         
     def stop(self):
+        """
+        Stop the worker gracefully.
+        """
         return self.enqueue(Operation(op='_stop'))
         
     def execute(self, op):
@@ -121,6 +144,9 @@ class Runner(object):
 
         
     def __call__(self):
+        """
+        The main working loop.
+        """
         self.running = True
         while self.running:
             try:
@@ -181,14 +207,29 @@ class FileIOManager(object):
         return d
     
     def spawnRunner(self):
+        """
+        Starts a runner in a separate thread.
+        """
         r = Runner(self)
         self.runners.append(r)
         return threads.deferToThread(r).addCallback(lambda _: self.runners.remove(r))
 
     def stop(self):
+        """
+        Stop the workers. This is added as a reactor hook, and normally does not need to
+        be called directly.
+        """
         self.accept_operations = False
         for x in self.runners:
             x.stop()
         
     def open(self, *args, **kwargs):
+        """
+        @param *args: arguments as normally passed to file.open()
+        @param **Kwargs: keyword arguments as normally passed to file.open()
+        
+        @return: a Deferred which fires with a FileIOProxy object.
+        
+        Opens a file asynchronously. 
+        """
         return self.enqueue('open', None, args, kwargs)
