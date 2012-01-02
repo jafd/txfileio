@@ -19,3 +19,8 @@ d = filemanager.open(<the same arguments as for regular open>).addCallback(do_re
 
 FileIOProxy objects delegate all operations to the manager, and return deferreds which,
 if successful, fire with results of those operations, and fail with appropriate failures.
+
+The usage of these proxies are the same as regular files, except that they always return
+Deferreds. The arguments are accepted as in a regular file-like objects.
+
+Note also, that any additional methods your objects might have, will work too.
